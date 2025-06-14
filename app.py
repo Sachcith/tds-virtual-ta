@@ -4,7 +4,7 @@ import base64, os, json, requests
 app = Flask(__name__)
 
 # Hugging Face API setup
-HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+HF_API_URL = "https://api-inference.huggingface.co/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
 HF_HEADERS = {
     "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"  # Set this in your Render environment
 }
