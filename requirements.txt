@@ -1,6 +1,4 @@
 flask
 requests
-beautifulsoup4
-python-dateutil
-sentence-transformers
-faiss-cpu
+numpy
+python-dotenv
