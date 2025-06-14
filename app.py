@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import base64, os, json, requests
 
 app = Flask(__name__)
@@ -26,6 +26,10 @@ def get_embedding(text):
 # Pre-compute embeddings for all titles (run once at startup)
 import numpy as np
 title_embeddings = [get_embedding(t) for t in titles]
+
+@app.route("/", methods=["GET","POST"])
+def root():
+    return render_template("index.html")
 
 @app.route("/api/", methods=["POST"])
 def answer():
