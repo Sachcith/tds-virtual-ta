@@ -24,22 +24,32 @@ def get_embedding(text: str) -> list[float]:
         response = requests.post(
             HF_API_URL,
             headers=HF_HEADERS,
-            json={"inputs": text}  # for sentence-transformers, inputs = string
+            json={"inputs": text}
         )
         response.raise_for_status()
-        return response.json()  # returns a flat list [float]
+        vec = response.json()
+        if isinstance(vec, list) and isinstance(vec[0], list):
+            return vec[0]  # <-- ✅ Flatten 2D to 1D
+        return vec
     except Exception as e:
         print("Error in get_embedding:", e)
         return []
 
 # Pre-compute title embeddings
-title_embeddings = []
-for title in titles:
-    vec = get_embedding(title)
-    if vec:
-        title_embeddings.append(vec)
-    else:
-        title_embeddings.append(np.zeros(384))  # fallback zero vector
+if os.path.exists("title_embeddings.json"):
+    with open("title_embeddings.json") as f:
+        title_embeddings = json.load(f)
+else:
+    title_embeddings = []
+    for title in titles:
+        vec = get_embedding(title)
+        print(title, len(vec), vec[:5])
+        if vec:
+            title_embeddings.append(vec)
+        else:
+            title_embeddings.append([0.0] * 384)
+    with open("title_embeddings.json", "w") as f:
+        json.dump(title_embeddings, f)
 
 @app.route("/", methods=["GET", "POST"])
 def root():
@@ -54,15 +64,47 @@ def answer():
     if not question:
         return jsonify({"error": "Question is required"}), 400
 
+    # Get question embedding
     q_embed = np.array(get_embedding(question))
-    if len(q_embed) == 0:
-        return jsonify({"error": "Failed to get embedding from HF API"}), 500
+    if q_embed.shape[0] != 384:
+        return jsonify({"error": "Failed to get valid embedding from HF API"}), 500
 
-    # Cosine similarity
-    sims = [np.dot(q_embed, np.array(t)) / (np.linalg.norm(q_embed) * np.linalg.norm(t)) for t in title_embeddings]
-    top_k_idx = sorted(range(len(sims)), key=lambda i: sims[i], reverse=True)[:2]
+    print(f"✅ Question: {question}")
+    print(f"✅ Embedding (shape): {q_embed.shape}")
+    print(f"✅ Embedding (first 5 values): {q_embed[:5]}")
 
-    links = [{"url": urls[i], "text": titles[i]} for i in top_k_idx]
+    # Cosine similarity with safe handling
+    def cosine_sim(a, b):
+        a = np.array(a)
+        b = np.array(b)
+        if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+            return 0.0
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+    sims = [cosine_sim(q_embed, t) for t in title_embeddings]
+
+    # Debug: check for NaNs
+    for idx, sim in enumerate(sims):
+        if not np.isfinite(sim):
+            print(f"⚠ Invalid similarity at idx {idx}: {sim} (title: {titles[idx]})")
+
+    # Sort and filter
+    top_k_idx = sorted(
+        [i for i in range(len(sims)) if np.isfinite(sims[i])],
+        key=lambda i: sims[i],
+        reverse=True
+    )
+    print(len(sims))
+    if not top_k_idx:
+        print("⚠ No valid similarity scores found.")
+        return jsonify({"answer": f"No relevant posts found for your question: '{question}'", "links": []})
+
+    print("✅ Top 5 similarities:")
+    for i in top_k_idx[:5]:
+        print(f"  - Score: {sims[i]:.4f} | Title: {titles[i]}")
+
+    # Build links
+    links = [{"url": urls[i], "text": titles[i]} for i in top_k_idx[:2]]
     answer_text = f"Here's what I found based on your question: '{question}'"
 
     return jsonify({"answer": answer_text, "links": links})
