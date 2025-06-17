@@ -1,4 +1,5 @@
-flask
-requests
 numpy
-python-dotenv
+flask
+huggingface_hub
+requests
+python-dateutil
