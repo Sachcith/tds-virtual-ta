@@ -2,12 +2,13 @@ import os
 import json
 import base64
 import time
-
+from flask_cors import CORS
 import numpy as np
 from flask import Flask, request, jsonify, render_template
 from huggingface_hub import InferenceClient
 
 app = Flask(__name__)
+CORS(app) 
 
 # ─── Initialize the HF InferenceClient ────────────────────────────────────────
 client = InferenceClient(

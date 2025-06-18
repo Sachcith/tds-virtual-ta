@@ -3,3 +3,4 @@ flask
 huggingface_hub
 requests
 python-dateutil
+flask-cors
